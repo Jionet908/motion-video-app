@@ -57,11 +57,10 @@
     </main>
 
     <footer class="p-4 border-t border-slate-900 text-center text-xs text-slate-600">
-        Engine Protocol: Gemini-1.5-Flash • Client Side Secure Engine
+        Engine Protocol: Gemini-3.5-Flash • Client Side Secure Engine
     </footer>
 
     <script>
-        // Core Web Framework Elements
         const keyBtn = document.getElementById('keyBtn');
         const keyBox = document.getElementById('keyBox');
         const keyInput = document.getElementById('keyInput');
@@ -97,16 +96,16 @@
             }
             if (!prompt) return alert('Please enter a query or prompt message context.');
 
-            // Prep Interface Elements for execution flow
+            // Prep Interface Elements
             generateBtn.disabled = true;
             loadingState.classList.remove('hidden');
             placeholderState.classList.add('hidden');
             outputText.classList.remove('hidden');
-            outputText.innerText = ""; // Clear existing text buffers
+            outputText.innerText = ""; 
 
             try {
-                // Initialize clean web request directly to Google API Services
-                const endpointUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+                // FIXED: Changed model string from gemini-1.5-flash to gemini-3.5-flash
+                const endpointUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
                 
                 const response = await fetch(endpointUrl, {
                     method: 'POST',
@@ -116,7 +115,6 @@
                     })
                 });
 
-                // Deep inspect response metadata errors
                 if (!response.ok) {
                     let serverErrorMsg = `HTTP Code ${response.status}`;
                     try {
@@ -127,8 +125,6 @@
                 }
 
                 const resultData = await response.json();
-                
-                // Unpack deep response token mappings securely
                 const generatedOutput = resultData.candidates?.[0]?.content?.parts?.[0]?.text;
                 
                 if (generatedOutput) {
