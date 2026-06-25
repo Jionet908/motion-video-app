@@ -1,1 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Motion - Text to Video AI</title>
+    <!-- Tailwind CSS for modern mobile-responsive styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col justify-between font-sans">
 
+    <!-- Header -->
+    <header class="border-b border-slate-800 p-4 bg-slate-900/50 backdrop-blur sticky top-0 z-50">
+        <div class="max-w-xl mx-auto flex justify-between items-center">
+            <h1 class="text-xl font-bold tracking-tight bg-gradient-to-r from-violet-400 to-fuchsia-400 bg-clip-text text-transparent">
+                Motion.io
+            </h1>
+            <button id="keyBtn" class="text-xs bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg border border-slate-700 transition">
+                🔑 Configure API Key
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="flex-1 p-4 max-w-xl w-full mx-auto space-y-6">
+        
+        <!-- API Key Setup Alert/Input (Hidden once configured) -->
+        <div id="keyBox" class="bg-amber-950/40 border border-amber-500/30 p-4 rounded-xl space-y-3 hidden">
+            <h2 class="text-amber-400 text-sm font-semibold">Fal.ai API Key Required</h2>
+            <p class="text-xs text-slate-300">Your key stays on your device inside your local storage; it is never sent to GitHub.</p>
+            <div class="flex gap-2">
+                <input id="keyInput" type="password" placeholder="fal_key_..." class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm flex-1 focus:outline-none focus:border-violet-500 text-amber-200">
+                <button id="saveKeyBtn" class="bg-amber-500 hover:bg-amber-600 text-slate-950 px-4 py-2 rounded-lg text-sm font-medium transition">Save</button>
+            </div>
+        </div>
+
+        <!-- Video Player Display Area -->
+        <div class="aspect-video w-full bg-slate-950 rounded-2xl border border-slate-800 flex flex-col items-center justify-center overflow-hidden relative shadow-2xl">
+            <video id="videoOutput" controls class="w-full h-full object-cover hidden" playsinline></video>
+            
+            <!-- Dynamic State Placeholders -->
+            <div id="placeholderState" class="text-center p-6 space-y-2">
+                <div class="w-12 h-12 rounded-full bg-slate-900 flex items-center justify-center mx-auto text-xl text-slate-500">🎬</div>
+                <p class="text-sm text-slate-400">Your generated video will appear here</p>
+            </div>
+
+            <div id="loadingState" class="hidden text-center p-6 space-y-4 absolute inset-0 bg-slate-950/80 flex flex-col items-center justify-center backdrop-blur-sm">
+                <div class="animate-spin rounded-full h-10 w-10 border-2 border-violet-500 border-t-transparent"></div>
+                <div class="space-y-1">
+                    <p id="statusText" class="text-sm font-semibold text-violet-400">Submitting to engine...</p>
+                    <p class="text-xs text-slate-400 animate-pulse">This usually takes around 30 to 60 seconds</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Prompt Generator Form -->
+        <div class="space-y-3">
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400">Video Prompt</label>
+            <textarea id="promptInput" rows="3" placeholder="A cinematic drone shot of neon-lit Tokyo streets covered in rain, smooth camera motion..." class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:outline-none focus:border-violet-500 resize-none text-slate-200 placeholder-slate-600"></textarea>
+            
+            <button id="generateBtn" class="w-full bg-gradient-to-r from-violet-500 to-fuchsia-500 hover:from-violet-600 hover:to-fuchsia-600 text-white font-medium py-3 px-4 rounded-xl shadow-lg shadow-violet-500/10 transition active:scale-[0.98]">
+                Generate Motion Video
+            </button>
+        </div>
+
+    </main>
+
+    <!-- Footer Footer -->
+    <footer class="p-4 border-t border-slate-800 text-center text-xs text-slate-500">
+        Powered by Fal.ai • Optimized for Mobile Build
+    </footer>
+
+    <!-- App Engine Logic -->
+    <script>
+        // Core configuration variables
+        const MODEL_ENDPOINT = "fal-ai/wan/v2.5/text-to-video";
+        
+        // Element caching
+        const keyBtn = document.getElementById('keyBtn');
+        const keyBox = document.getElementById('keyBox');
+        const keyInput = document.getElementById('keyInput');
+        const saveKeyBtn = document.getElementById('saveKeyBtn');
+        const promptInput = document.getElementById('promptInput');
+        const generateBtn = document.getElementById('generateBtn');
+        const videoOutput = document.getElementById('videoOutput');
+        const placeholderState = document.getElementById('placeholderState');
+        const loadingState = document.getElementById('loadingState');
+        const statusText = document.getElementById('statusText');
+
+        // Check local storage for existing configuration
+        let apiKey = localStorage.getItem('FAL_KEY') || '';
+        if (!apiKey) keyBox.classList.remove('hidden');
+
+        // API Key Toggle Management
+        keyBtn.addEventListener('click', () => keyBox.classList.toggle('hidden'));
+        saveKeyBtn.addEventListener('click', () => {
+            const val = keyInput.value.trim();
+            if(val) {
+                apiKey = val;
+                localStorage.setItem('FAL_KEY', val);
+                keyBox.classList.add('hidden');
+                alert('API Credentials saved securely.');
+            }
+        });
+
+        // Pipeline Logic
+        generateBtn.addEventListener('click', async () => {
+            const prompt = promptInput.value.trim();
+            if (!apiKey) {
+                keyBox.classList.remove('hidden');
+                return alert('Please configure your Fal.ai API Key first.');
+            }
+            if (!prompt) return alert('Please enter a creative video prompt description.');
+
+            // UI Transition to Loading State
+            generateBtn.disabled = true;
+            loadingState.classList.remove('hidden');
+            videoOutput.classList.add('hidden');
+            placeholderState.classList.add('hidden');
+            statusText.innerText = "Connecting to queue...";
+
+            try {
+                // 1. Submit Generation Request to the Async Queue Architecture
+                const queueRes = await fetch(`https://queue.fal.run/${MODEL_ENDPOINT}`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Key ${apiKey}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ prompt: prompt, video_size: "landscape_16_9" })
+                });
+
+                if (!queueRes.ok) throw new Error(`Queue Submission Error: ${queueRes.statusText}`);
+                const queueData = await queueRes.json();
+                const requestId = queueData.request_id;
+
+                // 2. Poll Status until execution completion
+                pollRequestStatus(requestId);
+
+            } catch (err) {
+                console.error(err);
+                alert(`Error: ${err.message}`);
+                resetUI();
+            }
+        });
+
+        async function pollRequestStatus(requestId) {
+            try {
+                const statusRes = await fetch(`https://queue.fal.run/${MODEL_ENDPOINT}/requests/${requestId}`, {
+                    method: 'GET',
+                    headers: { 'Authorization': `Key ${apiKey}` }
+                });
+
+                if (!statusRes.ok) throw new Error('Failed to retrieve generation status pipeline.');
+                const statusData = await statusRes.json();
+
+                if (statusData.status === "COMPLETED") {
+                    // Extract video array or direct target payload objects safely
+                    const videoUrl = statusData.video?.url || statusData.images?.[0]?.url;
+                    if (videoUrl) {
+                        videoOutput.src = videoUrl;
+                        videoOutput.classList.remove('hidden');
+                        loadingState.classList.add('hidden');
+                        generateBtn.disabled = false;
+                    } else {
+                        throw new Error("Generation complete, but could not resolve video source URL.");
+                    }
+                } else if (statusData.status === "FAILED") {
+                    throw new Error("The remote inference node failed to render the video.");
+                } else {
+                    // Update state trackers dynamically ("IN_QUEUE" or "IN_PROGRESS")
+                    statusText.innerText = statusData.status === "IN_PROGRESS" 
+                        ? "Rendering cinematic frames..." 
+                        : `Waiting in engine queue...`;
+                    
+                    // Poll again after a brief 3-second structural pause
+                    setTimeout(() => pollRequestStatus(requestId), 3000);
+                }
+            } catch (err) {
+                alert(`Pipeline Processing Exception: ${err.message}`);
+                resetUI();
+            }
+        }
+
+        function resetUI() {
+            loadingState.classList.add('hidden');
+            placeholderState.classList.remove('hidden');
+            generateBtn.disabled = false;
+        }
+    </script>
+</body>
+  </html>
