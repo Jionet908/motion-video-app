@@ -72,10 +72,8 @@
 
     <!-- App Engine Logic -->
     <script>
-        // Core configuration variables
         const MODEL_ENDPOINT = "fal-ai/wan/v2.5/text-to-video";
         
-        // Element caching
         const keyBtn = document.getElementById('keyBtn');
         const keyBox = document.getElementById('keyBox');
         const keyInput = document.getElementById('keyInput');
@@ -87,11 +85,9 @@
         const loadingState = document.getElementById('loadingState');
         const statusText = document.getElementById('statusText');
 
-        // Check local storage for existing configuration
         let apiKey = localStorage.getItem('FAL_KEY') || '';
         if (!apiKey) keyBox.classList.remove('hidden');
 
-        // API Key Toggle Management
         keyBtn.addEventListener('click', () => keyBox.classList.toggle('hidden'));
         saveKeyBtn.addEventListener('click', () => {
             const val = keyInput.value.trim();
@@ -103,7 +99,6 @@
             }
         });
 
-        // Pipeline Logic
         generateBtn.addEventListener('click', async () => {
             const prompt = promptInput.value.trim();
             if (!apiKey) {
@@ -112,7 +107,6 @@
             }
             if (!prompt) return alert('Please enter a creative video prompt description.');
 
-            // UI Transition to Loading State
             generateBtn.disabled = true;
             loadingState.classList.remove('hidden');
             videoOutput.classList.add('hidden');
@@ -120,21 +114,30 @@
             statusText.innerText = "Connecting to queue...";
 
             try {
-                // 1. Submit Generation Request to the Async Queue Architecture
                 const queueRes = await fetch(`https://queue.fal.run/${MODEL_ENDPOINT}`, {
                     method: 'POST',
                     headers: {
                         'Authorization': `Key ${apiKey}`,
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ prompt: prompt, video_size: "landscape_16_9" })
+                    body: JSON.stringify({ prompt: prompt })
                 });
 
-                if (!queueRes.ok) throw new Error(`Queue Submission Error: ${queueRes.statusText}`);
+                // Deep error body evaluation block
+                if (!queueRes.ok) {
+                    let serverErrorReason = `HTTP Error Status ${queueRes.status}`;
+                    try {
+                        const errorPayload = await queueRes.json();
+                        serverErrorReason = errorPayload.detail || errorPayload.message || JSON.stringify(errorPayload);
+                    } catch (jsonErr) {
+                        // Fallback if the response format isn't valid JSON JSON
+                    }
+                    throw new Error(`Queue Submission Error: ${serverErrorReason}`);
+                }
+
                 const queueData = await queueRes.json();
                 const requestId = queueData.request_id;
 
-                // 2. Poll Status until execution completion
                 pollRequestStatus(requestId);
 
             } catch (err) {
@@ -155,7 +158,6 @@
                 const statusData = await statusRes.json();
 
                 if (statusData.status === "COMPLETED") {
-                    // Extract video array or direct target payload objects safely
                     const videoUrl = statusData.video?.url || statusData.images?.[0]?.url;
                     if (videoUrl) {
                         videoOutput.src = videoUrl;
@@ -168,12 +170,10 @@
                 } else if (statusData.status === "FAILED") {
                     throw new Error("The remote inference node failed to render the video.");
                 } else {
-                    // Update state trackers dynamically ("IN_QUEUE" or "IN_PROGRESS")
                     statusText.innerText = statusData.status === "IN_PROGRESS" 
                         ? "Rendering cinematic frames..." 
                         : `Waiting in engine queue...`;
                     
-                    // Poll again after a brief 3-second structural pause
                     setTimeout(() => pollRequestStatus(requestId), 3000);
                 }
             } catch (err) {
@@ -189,4 +189,4 @@
         }
     </script>
 </body>
-  </html>
+</html>
